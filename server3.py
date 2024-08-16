@@ -27,7 +27,7 @@ import os.path
 import re
 import threading
 from datetime import timedelta, datetime
-# from itertools import izip
+# from itertools import zip
 from random import normalvariate, random
 from socketserver import ThreadingMixIn
 
@@ -43,7 +43,7 @@ REALTIME = True
 SIM_LENGTH = timedelta(days=365 * 5)
 MARKET_OPEN = datetime.today().replace(hour=0, minute=30, second=0)
 
-# Market parms
+# Market params
 #       min  / max  / std
 SPD = (2.0, 6.0, 0.1)
 PX = (60.0, 150.0, 1)
@@ -58,7 +58,7 @@ OVERLAP = 4
 #
 # Test Data
 
-def bwalk(min, max, std):
+def b_walk(min,max, std):
     """ Generates a bounded random walk. """
     rng = max - min
     while True:
@@ -70,7 +70,7 @@ def market(t0=MARKET_OPEN):
     """ Generates a random series of market conditions,
         (time, price, spread).
     """
-    for hours, px, spd in zip(bwalk(*FREQ), bwalk(*PX), bwalk(*SPD)):
+    for hours, px, spd in zip(b_walk(*FREQ), b_walk(*PX), b_walk(*SPD)):
         yield t0, px, spd
         t0 += timedelta(hours=abs(hours))
 
@@ -174,7 +174,7 @@ class ThreadedHTTPServer(ThreadingMixIn, http.server.HTTPServer):
     allow_reuse_address = True
 
     def shutdown(self):
-        """ Override MRO to shutdown properly. """
+        """ Override MRO to shut down properly. """
         self.socket.close()
         http.server.HTTPServer.shutdown(self)
 
@@ -216,7 +216,7 @@ def get(req_handler, routes):
                 return
 
 
-def run(routes, host='0.0.0.0', port=8080):
+def run(routes, host='127.0.0.1', port=6008):
     """ Runs a class as a server whose methods have been decorated with
         @route.
     """
@@ -225,16 +225,27 @@ def run(routes, host='0.0.0.0', port=8080):
         def log_message(self, *args, **kwargs):
             pass
 
-        def do_GET(self):
-            get(self, routes)
+        def do_get(self):
+            if self.path.startswith('/query'):
+                # Extract parameters, process the request, and return the correct response
+                self.send_response(200)
+                self.send_header('Content-type', 'application/json')
+                self.end_headers()
+                response = {"data": "value"}  # Example response
+                self.wfile.write(json.dumps(response).encode())
+            else:
+                self.send_error(404, "Endpoint Not Found")
+        #def do_get(self):
+        #    get(self, routes)
 
     server = ThreadedHTTPServer((host, port), RequestHandler)
     thread = threading.Thread(target=server.serve_forever)
     thread.daemon = True
     thread.start()
-    print('HTTP server started on port 8080')
+    print('HTTP server started on port 6008')
     while True:
         from time import sleep
+        
         sleep(1)
     server.shutdown()
     server.start()
@@ -295,7 +306,7 @@ class App(object):
             t1, bids1, asks1 = next(self._current_book_1)
             t2, bids2, asks2 = next(self._current_book_2)
         except Exception as e:
-            print("error getting stocks...reinitalizing app")
+            print("error getting stocks...reinitializing app",e)
             self.__init__()
             t1, bids1, asks1 = next(self._current_book_1)
             t2, bids2, asks2 = next(self._current_book_2)
@@ -337,4 +348,4 @@ if __name__ == '__main__':
     if not os.path.isfile('test.csv'):
         print("No data found, generating...")
         generate_csv()
-    run(App())
+    run(App(),port=6008)
